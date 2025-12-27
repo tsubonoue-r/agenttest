@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import SkillRadarChart from '@/components/SkillRadarChart';
+import Link from 'next/link';
 import {
   initializeSampleData,
   getCurrentUser,
@@ -11,10 +12,13 @@ import {
   getUserSkillProfile,
   getQuizzes,
   getMaterials,
+  getSchedulesForEmployee,
+  getScheduleProgress,
+  getEmployees,
 } from '@/lib/storage';
-import { User, Skill, Quiz, Material, RadarChartData } from '@/types';
+import { User, Skill, Quiz, Material, RadarChartData, EducationSchedule, ScheduleProgress, Employee } from '@/types';
 
-type TabType = 'dashboard' | 'quizzes' | 'materials' | 'users';
+type TabType = 'dashboard' | 'schedules' | 'quizzes' | 'materials' | 'users';
 
 export default function Home() {
   const [currentUser, setCurrentUserState] = useState<User | null>(null);
@@ -27,6 +31,9 @@ export default function Home() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mySchedules, setMySchedules] = useState<EducationSchedule[]>([]);
+  const [scheduleProgress, setScheduleProgress] = useState<Record<string, ScheduleProgress>>({});
+  const [employees, setEmployeesState] = useState<Employee[]>([]);
 
   useEffect(() => {
     initializeSampleData();
@@ -34,11 +41,13 @@ export default function Home() {
     const skillsData = getSkills();
     const quizzesData = getQuizzes();
     const materialsData = getMaterials();
+    const employeesData = getEmployees();
 
     setUsers(usersData);
     setSkillsState(skillsData);
     setQuizzes(quizzesData);
     setMaterials(materialsData);
+    setEmployeesState(employeesData);
 
     let user = getCurrentUser();
     if (!user && usersData.length > 0) {
@@ -46,6 +55,22 @@ export default function Home() {
       setCurrentUser(user);
     }
     setCurrentUserState(user);
+
+    // Load schedules for current user
+    if (user) {
+      const schedules = getSchedulesForEmployee(user.id);
+      setMySchedules(schedules);
+
+      // Load progress for each schedule
+      const progressMap: Record<string, ScheduleProgress> = {};
+      schedules.forEach((schedule) => {
+        const progress = getScheduleProgress(schedule.id, user!.id);
+        if (progress) {
+          progressMap[schedule.id] = progress;
+        }
+      });
+      setScheduleProgress(progressMap);
+    }
 
     if (user) {
       const profile = getUserSkillProfile(user.id);
@@ -103,10 +128,13 @@ export default function Home() {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'schedules', label: 'My Schedule', icon: '📅' },
     { id: 'quizzes', label: 'Quizzes', icon: '📝' },
     { id: 'materials', label: 'Materials', icon: '📚' },
     { id: 'users', label: 'Users', icon: '👥' },
   ];
+
+  const isManagerOrAdmin = currentUser?.role === 'manager' || currentUser?.role === 'admin';
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'}`}>
@@ -145,6 +173,36 @@ export default function Home() {
               {sidebarOpen && <span className="font-medium">{item.label}</span>}
             </button>
           ))}
+
+          {/* Manager/Admin Link */}
+          {isManagerOrAdmin && (
+            <Link
+              href="/manager"
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mt-4 ${
+                darkMode
+                  ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              <span className="text-xl">👔</span>
+              {sidebarOpen && <span className="font-medium">Manager Console</span>}
+            </Link>
+          )}
+
+          {/* Admin Link */}
+          {currentUser?.role === 'admin' && (
+            <Link
+              href="/admin"
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                darkMode
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                  : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+              }`}
+            >
+              <span className="text-xl">⚙️</span>
+              {sidebarOpen && <span className="font-medium">Admin Console</span>}
+            </Link>
+          )}
         </nav>
 
         {/* Toggle Button */}
@@ -254,6 +312,132 @@ export default function Home() {
                     {currentUser?.name} - Skill Profile
                   </h3>
                   <SkillRadarChart data={radarData} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'schedules' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>My Education Schedule</h2>
+              </div>
+
+              {mySchedules.length === 0 ? (
+                <div className={`rounded-2xl p-12 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+                  <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-4xl mb-4">
+                    📅
+                  </div>
+                  <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>No Schedules Assigned</h3>
+                  <p className={`mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>You dont have any education schedules assigned yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {mySchedules.map((schedule) => {
+                    const progress = scheduleProgress[schedule.id];
+                    const progressPercent = progress?.progress || 0;
+                    const isCompleted = progressPercent === 100;
+                    const isPastDue = new Date(schedule.dueDate) < new Date() && !isCompleted;
+
+                    return (
+                      <div
+                        key={schedule.id}
+                        className={`group rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl hover:shadow-2xl transition-all duration-300 border ${
+                          isCompleted
+                            ? darkMode ? 'border-green-500/30' : 'border-green-200'
+                            : isPastDue
+                            ? darkMode ? 'border-red-500/30' : 'border-red-200'
+                            : darkMode ? 'border-gray-700' : 'border-gray-100'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-lg ${
+                              isCompleted
+                                ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                                : isPastDue
+                                ? 'bg-gradient-to-br from-red-500 to-rose-600'
+                                : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                            }`}>
+                              {isCompleted ? '✅' : isPastDue ? '⚠️' : '📚'}
+                            </div>
+                            <div>
+                              <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{schedule.title}</h3>
+                              <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{schedule.description}</p>
+                              <div className="flex items-center gap-4 mt-2">
+                                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  Start: {new Date(schedule.startDate).toLocaleDateString('ja-JP')}
+                                </span>
+                                <span className={`text-xs ${isPastDue ? 'text-red-500' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  Due: {new Date(schedule.dueDate).toLocaleDateString('ja-JP')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            isCompleted
+                              ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                              : isPastDue
+                              ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                              : schedule.status === 'active'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400'
+                          }`}>
+                            {isCompleted ? 'Completed' : isPastDue ? 'Past Due' : schedule.status}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mt-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Progress</span>
+                            <span className={`text-sm font-bold ${
+                              isCompleted ? 'text-green-500' : isPastDue ? 'text-red-500' : 'text-blue-500'
+                            }`}>{progressPercent}%</span>
+                          </div>
+                          <div className={`h-3 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isCompleted
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                  : isPastDue
+                                  ? 'bg-gradient-to-r from-red-500 to-rose-500'
+                                  : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                              }`}
+                              style={{ width: `${progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Materials and Quizzes Count */}
+                        <div className="flex items-center gap-4 mt-4">
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <span>📚</span>
+                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {progress?.completedMaterials?.length || 0}/{schedule.materials.length} Materials
+                            </span>
+                          </div>
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <span>📝</span>
+                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {progress?.completedQuizzes?.length || 0}/{schedule.quizzes.length} Quizzes
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        {!isCompleted && (
+                          <button className={`mt-4 w-full py-3 rounded-xl font-medium transition-all duration-200 ${
+                            isPastDue
+                              ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/30 hover:shadow-xl'
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl'
+                          }`}>
+                            {isPastDue ? 'Resume Learning (Overdue)' : 'Continue Learning'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

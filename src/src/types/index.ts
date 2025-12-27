@@ -179,6 +179,35 @@ export interface Material {
 }
 
 // ============================================
+// Education Schedule types (教育スケジュール)
+// ============================================
+export interface EducationSchedule {
+  id: string;
+  title: string;
+  description: string;
+  assignedTo: string[];      // 対象社員ID
+  assignedBy: string;        // 作成者(課長)ID
+  sectionId: string;         // 対象課
+  materials: string[];       // 教材ID
+  quizzes: string[];         // クイズID
+  startDate: string;
+  dueDate: string;
+  status: 'draft' | 'active' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduleProgress {
+  id: string;
+  scheduleId: string;
+  employeeId: string;
+  completedMaterials: string[];
+  completedQuizzes: string[];
+  progress: number;          // 0-100%
+  lastActivity: string;
+}
+
+// ============================================
 // Radar chart data type
 // ============================================
 export interface RadarChartData {

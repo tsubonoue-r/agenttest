@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department, Division, Section, Employee } from '@/types';
+import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department, Division, Section, Employee, EducationSchedule, ScheduleProgress } from '@/types';
 
 const STORAGE_KEYS = {
   USERS: 'elearning_users',
@@ -14,6 +14,8 @@ const STORAGE_KEYS = {
   SKILLS: 'elearning_skills',
   DEPARTMENTS: 'elearning_departments',
   CURRENT_USER: 'elearning_current_user',
+  SCHEDULES: 'elearning_schedules',
+  SCHEDULE_PROGRESS: 'elearning_schedule_progress',
 };
 
 function getItem<T>(key: string, defaultValue: T): T {
@@ -407,7 +409,118 @@ export function initializeSampleData(): void {
   if (getMaterials().length === 0) {
     const materials: Material[] = [
       { id: 'mat1', title: 'TypeScript入門ガイド', description: 'TypeScriptの基本を学ぶための資料です', type: 'document', url: '', content: '# TypeScript入門\n\nTypeScriptはMicrosoftが開発した言語です。', createdBy: 'admin1', createdAt: new Date().toISOString(), skillIds: ['skill1'] },
+      { id: 'mat2', title: 'React基礎', description: 'Reactコンポーネントの作り方', type: 'document', url: '', content: '# React基礎', createdBy: 'admin1', createdAt: new Date().toISOString(), skillIds: ['skill2'] },
+      { id: 'mat3', title: 'ビジネスマナー研修', description: '社会人としての基本マナー', type: 'document', url: '', content: '# ビジネスマナー', createdBy: 'admin1', createdAt: new Date().toISOString(), skillIds: ['skill3'] },
     ];
     setMaterials(materials);
   }
+
+  // Sample schedules
+  if (getSchedules().length === 0) {
+    const now = new Date().toISOString();
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const schedules: EducationSchedule[] = [
+      {
+        id: 'sch1',
+        title: 'TypeScript基礎研修',
+        description: '新入社員向けTypeScript研修',
+        assignedTo: ['emp1', 'emp3'],
+        assignedBy: 'emp2',
+        sectionId: 'sec_dev1',
+        materials: ['mat1'],
+        quizzes: ['quiz1'],
+        startDate: now,
+        dueDate: nextWeek,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    setSchedules(schedules);
+  }
+}
+
+// ============================================
+// Education Schedules (教育スケジュール)
+// ============================================
+export function getSchedules(): EducationSchedule[] {
+  return getItem<EducationSchedule[]>(STORAGE_KEYS.SCHEDULES, []);
+}
+
+export function setSchedules(schedules: EducationSchedule[]): void {
+  setItem(STORAGE_KEYS.SCHEDULES, schedules);
+}
+
+export function addSchedule(schedule: EducationSchedule): void {
+  const schedules = getSchedules();
+  schedules.push(schedule);
+  setSchedules(schedules);
+}
+
+export function updateSchedule(schedule: EducationSchedule): void {
+  const schedules = getSchedules();
+  const index = schedules.findIndex(s => s.id === schedule.id);
+  if (index !== -1) {
+    schedules[index] = { ...schedule, updatedAt: new Date().toISOString() };
+    setSchedules(schedules);
+  }
+}
+
+export function deleteSchedule(id: string): void {
+  setSchedules(getSchedules().filter(s => s.id !== id));
+}
+
+export function getScheduleById(id: string): EducationSchedule | undefined {
+  return getSchedules().find(s => s.id === id);
+}
+
+export function getSchedulesBySection(sectionId: string): EducationSchedule[] {
+  return getSchedules().filter(s => s.sectionId === sectionId);
+}
+
+export function getSchedulesForEmployee(employeeId: string): EducationSchedule[] {
+  return getSchedules().filter(s => s.assignedTo.includes(employeeId) && s.status === 'active');
+}
+
+// ============================================
+// Schedule Progress (進捗管理)
+// ============================================
+export function getScheduleProgress(): ScheduleProgress[] {
+  return getItem<ScheduleProgress[]>(STORAGE_KEYS.SCHEDULE_PROGRESS, []);
+}
+
+export function setScheduleProgress(progress: ScheduleProgress[]): void {
+  setItem(STORAGE_KEYS.SCHEDULE_PROGRESS, progress);
+}
+
+export function getProgressForSchedule(scheduleId: string): ScheduleProgress[] {
+  return getScheduleProgress().filter(p => p.scheduleId === scheduleId);
+}
+
+export function getProgressForEmployee(employeeId: string): ScheduleProgress[] {
+  return getScheduleProgress().filter(p => p.employeeId === employeeId);
+}
+
+export function updateProgress(progress: ScheduleProgress): void {
+  const allProgress = getScheduleProgress();
+  const index = allProgress.findIndex(p => p.scheduleId === progress.scheduleId && p.employeeId === progress.employeeId);
+  if (index !== -1) {
+    allProgress[index] = progress;
+  } else {
+    allProgress.push(progress);
+  }
+  setScheduleProgress(allProgress);
+}
+
+export function calculateProgress(scheduleId: string, employeeId: string): number {
+  const schedule = getScheduleById(scheduleId);
+  const progress = getScheduleProgress().find(p => p.scheduleId === scheduleId && p.employeeId === employeeId);
+
+  if (!schedule || !progress) return 0;
+
+  const totalItems = schedule.materials.length + schedule.quizzes.length;
+  if (totalItems === 0) return 100;
+
+  const completedItems = progress.completedMaterials.length + progress.completedQuizzes.length;
+  return Math.round((completedItems / totalItems) * 100);
 }
