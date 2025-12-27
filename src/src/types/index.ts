@@ -208,6 +208,35 @@ export interface ScheduleProgress {
 }
 
 // ============================================
+// Education Test types (確認テスト)
+// ============================================
+export interface EducationTest {
+  id: string;
+  scheduleId: string;        // 教育スケジュールID
+  employeeId: string;        // 受験者ID
+  testDate: string;          // テスト実施日
+  score: number;             // スコア（0-100）
+  passed: boolean;           // 合否
+  retestDate?: string;       // 再テスト日（不合格時）
+  notes?: string;            // 備考
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  type: 'education' | 'test' | 'retest';
+  scheduleId: string;
+  employeeId: string;
+  employeeName: string;
+  title: string;
+  date: string;
+  endDate?: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'passed' | 'failed';
+  color?: string;
+}
+
+// ============================================
 // Radar chart data type
 // ============================================
 export interface RadarChartData {

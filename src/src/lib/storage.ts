@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department, Division, Section, Employee, EducationSchedule, ScheduleProgress } from '@/types';
+import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department, Division, Section, Employee, EducationSchedule, ScheduleProgress, EducationTest, CalendarEvent } from '@/types';
 
 const STORAGE_KEYS = {
   USERS: 'elearning_users',
@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'elearning_current_user',
   SCHEDULES: 'elearning_schedules',
   SCHEDULE_PROGRESS: 'elearning_schedule_progress',
+  EDUCATION_TESTS: 'elearning_education_tests',
 };
 
 function getItem<T>(key: string, defaultValue: T): T {
@@ -523,4 +524,204 @@ export function calculateProgress(scheduleId: string, employeeId: string): numbe
 
   const completedItems = progress.completedMaterials.length + progress.completedQuizzes.length;
   return Math.round((completedItems / totalItems) * 100);
+}
+
+// ============================================
+// Education Tests (確認テスト)
+// ============================================
+export function getEducationTests(): EducationTest[] {
+  return getItem<EducationTest[]>(STORAGE_KEYS.EDUCATION_TESTS, []);
+}
+
+export function setEducationTests(tests: EducationTest[]): void {
+  setItem(STORAGE_KEYS.EDUCATION_TESTS, tests);
+}
+
+export function addEducationTest(test: EducationTest): void {
+  const tests = getEducationTests();
+  tests.push(test);
+  setEducationTests(tests);
+}
+
+export function updateEducationTest(test: EducationTest): void {
+  const tests = getEducationTests();
+  const index = tests.findIndex(t => t.id === test.id);
+  if (index !== -1) {
+    tests[index] = { ...test, updatedAt: new Date().toISOString() };
+    setEducationTests(tests);
+  }
+}
+
+export function deleteEducationTest(id: string): void {
+  setEducationTests(getEducationTests().filter(t => t.id !== id));
+}
+
+export function getTestById(id: string): EducationTest | undefined {
+  return getEducationTests().find(t => t.id === id);
+}
+
+export function getTestsBySchedule(scheduleId: string): EducationTest[] {
+  return getEducationTests().filter(t => t.scheduleId === scheduleId);
+}
+
+export function getTestsByEmployee(employeeId: string): EducationTest[] {
+  return getEducationTests().filter(t => t.employeeId === employeeId);
+}
+
+export function getTestsByScheduleAndEmployee(scheduleId: string, employeeId: string): EducationTest[] {
+  return getEducationTests().filter(t => t.scheduleId === scheduleId && t.employeeId === employeeId);
+}
+
+// Get pass rate for a schedule
+export function getSchedulePassRate(scheduleId: string): { passed: number; failed: number; pending: number } {
+  const schedule = getScheduleById(scheduleId);
+  if (!schedule) return { passed: 0, failed: 0, pending: 0 };
+
+  const tests = getTestsBySchedule(scheduleId);
+  const passed = tests.filter(t => t.passed).length;
+  const failed = tests.filter(t => !t.passed).length;
+  const pending = schedule.assignedTo.length - tests.length;
+
+  return { passed, failed, pending };
+}
+
+// ============================================
+// Calendar Events Generation
+// ============================================
+export function generateCalendarEvents(sectionId?: string): CalendarEvent[] {
+  const schedules = sectionId ? getSchedulesBySection(sectionId) : getSchedules();
+  const tests = getEducationTests();
+  const employees = getEmployees();
+  const events: CalendarEvent[] = [];
+
+  // Employee color map
+  const employeeColors = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ];
+
+  schedules.forEach(schedule => {
+    schedule.assignedTo.forEach((empId, index) => {
+      const employee = employees.find(e => e.id === empId);
+      if (!employee) return;
+
+      const color = employeeColors[index % employeeColors.length];
+
+      // Education event
+      events.push({
+        id: `edu-${schedule.id}-${empId}`,
+        type: 'education',
+        scheduleId: schedule.id,
+        employeeId: empId,
+        employeeName: employee.name,
+        title: `${schedule.title} - ${employee.name}`,
+        date: schedule.startDate,
+        endDate: schedule.dueDate,
+        status: schedule.status === 'completed' ? 'completed' : 'in_progress',
+        color,
+      });
+    });
+  });
+
+  // Add test events
+  tests.forEach(test => {
+    const schedule = getScheduleById(test.scheduleId);
+    const employee = employees.find(e => e.id === test.employeeId);
+    if (!schedule || !employee) return;
+
+    events.push({
+      id: `test-${test.id}`,
+      type: test.retestDate ? 'retest' : 'test',
+      scheduleId: test.scheduleId,
+      employeeId: test.employeeId,
+      employeeName: employee.name,
+      title: `${test.passed ? '合格' : '不合格'}: ${schedule.title} - ${employee.name}`,
+      date: test.testDate,
+      status: test.passed ? 'passed' : 'failed',
+    });
+
+    // Add retest event if scheduled
+    if (test.retestDate && !test.passed) {
+      events.push({
+        id: `retest-${test.id}`,
+        type: 'retest',
+        scheduleId: test.scheduleId,
+        employeeId: test.employeeId,
+        employeeName: employee.name,
+        title: `再テスト: ${schedule.title} - ${employee.name}`,
+        date: test.retestDate,
+        status: 'scheduled',
+      });
+    }
+  });
+
+  return events;
+}
+
+// ============================================
+// Gantt Chart Data Generation
+// ============================================
+export interface GanttTask {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  scheduleId: string;
+  scheduleName: string;
+  startDate: string;
+  endDate: string;
+  progress: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'overdue';
+  testStatus?: 'passed' | 'failed' | 'pending';
+  color: string;
+}
+
+export function generateGanttTasks(sectionId?: string): GanttTask[] {
+  const schedules = sectionId ? getSchedulesBySection(sectionId) : getSchedules();
+  const employees = getEmployees();
+  const allProgress = getScheduleProgress();
+  const tests = getEducationTests();
+  const tasks: GanttTask[] = [];
+
+  const colors = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ];
+
+  schedules.forEach(schedule => {
+    schedule.assignedTo.forEach((empId, index) => {
+      const employee = employees.find(e => e.id === empId);
+      if (!employee) return;
+
+      const progress = allProgress.find(p => p.scheduleId === schedule.id && p.employeeId === empId);
+      const progressPercent = progress?.progress || 0;
+
+      const now = new Date();
+      const dueDate = new Date(schedule.dueDate);
+      const isOverdue = dueDate < now && progressPercent < 100;
+
+      const empTests = tests.filter(t => t.scheduleId === schedule.id && t.employeeId === empId);
+      const latestTest = empTests.sort((a, b) => new Date(b.testDate).getTime() - new Date(a.testDate).getTime())[0];
+
+      let testStatus: 'passed' | 'failed' | 'pending' = 'pending';
+      if (latestTest) {
+        testStatus = latestTest.passed ? 'passed' : 'failed';
+      }
+
+      tasks.push({
+        id: `${schedule.id}-${empId}`,
+        employeeId: empId,
+        employeeName: employee.name,
+        scheduleId: schedule.id,
+        scheduleName: schedule.title,
+        startDate: schedule.startDate,
+        endDate: schedule.dueDate,
+        progress: progressPercent,
+        status: isOverdue ? 'overdue' : progressPercent === 100 ? 'completed' : progressPercent > 0 ? 'in_progress' : 'pending',
+        testStatus,
+        color: colors[index % colors.length],
+      });
+    });
+  });
+
+  return tasks;
 }

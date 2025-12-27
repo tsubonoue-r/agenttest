@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Employee, Division, Section, EducationSchedule, Material, Quiz } from '@/types';
+import { Employee, Division, Section, EducationSchedule, Material, Quiz, CalendarEvent } from '@/types';
 import {
   initializeSampleData,
   getEmployees,
@@ -11,14 +11,18 @@ import {
   addSchedule,
   updateSchedule,
   deleteSchedule,
-  getSchedulesBySection,
   getMaterials,
   getQuizzes,
-  getProgressForSchedule,
   calculateProgress,
+  generateCalendarEvents,
+  generateGanttTasks,
+  GanttTask,
 } from '@/lib/storage';
+import ScheduleCalendar from '@/components/ScheduleCalendar';
+import ScheduleGantt from '@/components/ScheduleGantt';
+import TestResultManager from '@/components/TestResultManager';
 
-type ManagerTab = 'dashboard' | 'schedules' | 'members' | 'reports';
+type ManagerTab = 'dashboard' | 'calendar' | 'gantt' | 'schedules' | 'tests' | 'members' | 'reports';
 
 export default function ManagerPage() {
   const [activeTab, setActiveTab] = useState<ManagerTab>('dashboard');
@@ -28,12 +32,13 @@ export default function ManagerPage() {
   const [schedules, setSchedulesState] = useState<EducationSchedule[]>([]);
   const [materials, setMaterialsState] = useState<Material[]>([]);
   const [quizzes, setQuizzesState] = useState<Quiz[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [ganttTasks, setGanttTasks] = useState<GanttTask[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<EducationSchedule | null>(null);
 
-  // 仮の現在ユーザー (課長)
   const [currentManager] = useState<Employee>({
     id: 'emp2',
     name: '鈴木 課長',
@@ -69,11 +74,11 @@ export default function ManagerPage() {
     setSchedulesState(getSchedules());
     setMaterialsState(getMaterials());
     setQuizzesState(getQuizzes());
+    setCalendarEvents(generateCalendarEvents());
+    setGanttTasks(generateGanttTasks());
   };
 
-  // 自分の課の社員のみ
   const myTeamMembers = employees.filter(e => e.sectionId === currentManager.sectionId && e.id !== currentManager.id);
-  // 自分の課のスケジュール
   const mySchedules = schedules.filter(s => s.sectionId === currentManager.sectionId);
 
   const handleCreateSchedule = () => {
@@ -156,11 +161,22 @@ export default function ManagerPage() {
   const getSectionName = (id: string) => sections.find(s => s.id === id)?.name || '';
   const getEmployeeName = (id: string) => employees.find(e => e.id === id)?.name || '';
 
+  const handleEventClick = (event: CalendarEvent) => {
+    alert(`Event: ${event.title}\nType: ${event.type}\nStatus: ${event.status}`);
+  };
+
+  const handleTaskClick = (task: GanttTask) => {
+    alert(`Task: ${task.scheduleName}\nEmployee: ${task.employeeName}\nProgress: ${task.progress}%\nTest: ${task.testStatus}`);
+  };
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'schedules', label: 'スケジュール管理', icon: '📅' },
+    { id: 'calendar', label: 'カレンダー', icon: '📅' },
+    { id: 'gantt', label: 'ガントチャート', icon: '📈' },
+    { id: 'schedules', label: 'スケジュール', icon: '📋' },
+    { id: 'tests', label: 'テスト結果', icon: '📝' },
     { id: 'members', label: '課員一覧', icon: '👥' },
-    { id: 'reports', label: 'レポート', icon: '📈' },
+    { id: 'reports', label: 'レポート', icon: '📊' },
   ];
 
   if (!isInitialized) {
@@ -174,8 +190,8 @@ export default function ManagerPage() {
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-amber-50 via-orange-50 to-red-50'}`}>
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-64 ${darkMode ? 'bg-gray-800' : 'bg-white/90'} backdrop-blur-xl shadow-2xl`}>
-        <div className="h-20 flex items-center px-6 border-b border-gray-200">
+      <aside className={`fixed top-0 left-0 h-full w-64 ${darkMode ? 'bg-gray-800' : 'bg-white/90'} backdrop-blur-xl shadow-2xl z-40`}>
+        <div className={`h-20 flex items-center px-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg">
               <span className="text-white text-xl">👔</span>
@@ -187,7 +203,7 @@ export default function ManagerPage() {
           </div>
         </div>
 
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-220px)]">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -199,19 +215,18 @@ export default function ManagerPage() {
               }`}
             >
               <span className="text-xl">{item.icon}</span>
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium text-sm">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        {/* Current Manager Info */}
         <div className={`absolute bottom-20 left-4 right-4 p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-orange-50'}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white font-bold">
               {currentManager.name.charAt(0)}
             </div>
             <div>
-              <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{currentManager.name}</p>
+              <p className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{currentManager.name}</p>
               <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 {getDivisionName(currentManager.divisionId)} / {getSectionName(currentManager.sectionId)}
               </p>
@@ -220,8 +235,8 @@ export default function ManagerPage() {
         </div>
 
         <div className="absolute bottom-4 left-4 right-4">
-          <a href="/" className={`block text-center py-3 rounded-xl ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} hover:opacity-80`}>
-            ← ホームに戻る
+          <a href="/" className={`block text-center py-3 rounded-xl ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} hover:opacity-80 text-sm`}>
+            ← Home
           </a>
         </div>
       </aside>
@@ -250,49 +265,120 @@ export default function ManagerPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[
-                { label: '課員数', value: myTeamMembers.length, icon: '👥', color: 'blue' },
-                { label: 'スケジュール数', value: mySchedules.length, icon: '📅', color: 'orange' },
-                { label: '進行中', value: mySchedules.filter(s => s.status === 'active').length, icon: '🔄', color: 'green' },
-                { label: '完了', value: mySchedules.filter(s => s.status === 'completed').length, icon: '✅', color: 'purple' },
+                { label: '課員数', value: myTeamMembers.length, icon: '👥', gradient: 'from-blue-500 to-cyan-500' },
+                { label: 'スケジュール', value: mySchedules.length, icon: '📅', gradient: 'from-orange-500 to-red-500' },
+                { label: '進行中', value: mySchedules.filter(s => s.status === 'active').length, icon: '🔄', gradient: 'from-green-500 to-emerald-500' },
+                { label: '完了', value: mySchedules.filter(s => s.status === 'completed').length, icon: '✅', gradient: 'from-purple-500 to-pink-500' },
               ].map((stat, i) => (
                 <div key={i} className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
-                      <p className={`text-3xl font-bold mt-1 text-${stat.color}-500`}>{stat.value}</p>
+                      <p className={`text-3xl font-bold mt-1 bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent`}>{stat.value}</p>
                     </div>
-                    <span className="text-3xl">{stat.icon}</span>
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center text-xl`}>
+                      {stat.icon}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* 進行中のスケジュール */}
-            <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
-              <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>進行中のスケジュール</h3>
-              <div className="space-y-4">
-                {mySchedules.filter(s => s.status === 'active').map(schedule => (
-                  <div key={schedule.id} className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{schedule.title}</h4>
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          対象: {schedule.assignedTo.map(id => getEmployeeName(id)).join(', ')}
-                        </p>
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          期限: {new Date(schedule.dueDate).toLocaleDateString('ja-JP')}
-                        </p>
+            {/* Quick View - Mini Calendar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>今週のスケジュール</h3>
+                  <button
+                    onClick={() => setActiveTab('calendar')}
+                    className={`text-sm ${darkMode ? 'text-orange-400' : 'text-orange-600'} hover:underline`}
+                  >
+                    詳細 →
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {mySchedules.filter(s => s.status === 'active').slice(0, 3).map(schedule => (
+                    <div key={schedule.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{schedule.title}</h4>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {schedule.assignedTo.length}名 | 期限: {new Date(schedule.dueDate).toLocaleDateString('ja-JP')}
+                          </p>
+                        </div>
+                        <span className="px-2 py-1 bg-green-500/20 text-green-500 rounded text-xs">進行中</span>
                       </div>
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs">進行中</span>
                     </div>
-                  </div>
-                ))}
-                {mySchedules.filter(s => s.status === 'active').length === 0 && (
-                  <p className={`text-center py-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>進行中のスケジュールはありません</p>
-                )}
+                  ))}
+                </div>
+              </div>
+
+              <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>課員進捗</h3>
+                  <button
+                    onClick={() => setActiveTab('gantt')}
+                    className={`text-sm ${darkMode ? 'text-orange-400' : 'text-orange-600'} hover:underline`}
+                  >
+                    ガントチャート →
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {myTeamMembers.slice(0, 4).map(emp => {
+                    const empSchedules = mySchedules.filter(s => s.assignedTo.includes(emp.id));
+                    const avgProgress = empSchedules.length > 0
+                      ? Math.round(empSchedules.reduce((acc, s) => acc + calculateProgress(s.id, emp.id), 0) / empSchedules.length)
+                      : 0;
+                    return (
+                      <div key={emp.id} className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-sm font-bold">
+                          {emp.name.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{emp.name}</span>
+                            <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{avgProgress}%</span>
+                          </div>
+                          <div className={`h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div
+                              className={`h-full rounded-full transition-all ${avgProgress >= 80 ? 'bg-green-500' : avgProgress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                              style={{ width: `${avgProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Calendar View */}
+        {activeTab === 'calendar' && (
+          <ScheduleCalendar
+            events={calendarEvents}
+            darkMode={darkMode}
+            onEventClick={handleEventClick}
+          />
+        )}
+
+        {/* Gantt Chart View */}
+        {activeTab === 'gantt' && (
+          <ScheduleGantt
+            tasks={ganttTasks}
+            darkMode={darkMode}
+            onTaskClick={handleTaskClick}
+          />
+        )}
+
+        {/* Test Results */}
+        {activeTab === 'tests' && (
+          <TestResultManager
+            darkMode={darkMode}
+            sectionId={currentManager.sectionId}
+          />
         )}
 
         {/* Schedules */}
@@ -316,9 +402,9 @@ export default function ManagerPage() {
                       <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{schedule.description}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs ${
-                      schedule.status === 'active' ? 'bg-green-100 text-green-700' :
-                      schedule.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
+                      schedule.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
+                      schedule.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                      'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400'
                     }`}>
                       {schedule.status === 'active' ? '進行中' : schedule.status === 'completed' ? '完了' : '下書き'}
                     </span>
@@ -331,7 +417,6 @@ export default function ManagerPage() {
                     <p>📅 期限: {new Date(schedule.dueDate).toLocaleDateString('ja-JP')}</p>
                   </div>
 
-                  {/* 進捗バー */}
                   <div className="mt-4">
                     <div className="flex justify-between text-xs mb-1">
                       <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>全体進捗</span>
@@ -343,20 +428,20 @@ export default function ManagerPage() {
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500"
                         style={{ width: `${Math.round(schedule.assignedTo.reduce((acc, empId) => acc + calculateProgress(schedule.id, empId), 0) / Math.max(schedule.assignedTo.length, 1))}%` }}
-                      ></div>
+                      />
                     </div>
                   </div>
 
                   <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => openEditModal(schedule)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'} transition-colors`}
                     >
                       編集
                     </button>
                     <button
                       onClick={() => handleDeleteSchedule(schedule.id)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-600 hover:bg-red-200'} transition-colors`}
                     >
                       削除
                     </button>
@@ -396,13 +481,13 @@ export default function ManagerPage() {
                       </td>
                       <td className={`px-6 py-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{emp.email}</td>
                       <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">{emp.role}</span>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded-full text-xs">{emp.role}</span>
                       </td>
                       <td className={`px-6 py-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{empSchedules.length}件</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className={`w-20 h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500" style={{ width: `${avgProgress}%` }}></div>
+                            <div className={`h-full rounded-full ${avgProgress >= 80 ? 'bg-green-500' : avgProgress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${avgProgress}%` }} />
                           </div>
                           <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{avgProgress}%</span>
                         </div>
@@ -417,29 +502,38 @@ export default function ManagerPage() {
 
         {/* Reports */}
         {activeTab === 'reports' && (
-          <div className={`rounded-2xl p-8 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
-            <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>課全体の学習状況</h3>
-            <div className="space-y-4">
-              {myTeamMembers.map(emp => {
-                const empSchedules = mySchedules.filter(s => s.assignedTo.includes(emp.id));
-                const avgProgress = empSchedules.length > 0
-                  ? Math.round(empSchedules.reduce((acc, s) => acc + calculateProgress(s.id, emp.id), 0) / empSchedules.length)
-                  : 0;
-                return (
-                  <div key={emp.id} className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{emp.name}</span>
-                      <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{avgProgress}%</span>
+          <div className="space-y-6">
+            <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+              <h3 className={`text-xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-800'}`}>課全体の学習状況</h3>
+              <div className="space-y-4">
+                {myTeamMembers.map(emp => {
+                  const empSchedules = mySchedules.filter(s => s.assignedTo.includes(emp.id));
+                  const avgProgress = empSchedules.length > 0
+                    ? Math.round(empSchedules.reduce((acc, s) => acc + calculateProgress(s.id, emp.id), 0) / empSchedules.length)
+                    : 0;
+                  return (
+                    <div key={emp.id} className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-sm font-bold">
+                            {emp.name.charAt(0)}
+                          </div>
+                          <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{emp.name}</span>
+                        </div>
+                        <span className={`text-lg font-bold ${avgProgress >= 80 ? 'text-green-500' : avgProgress >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                          {avgProgress}%
+                        </span>
+                      </div>
+                      <div className={`h-3 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                        <div
+                          className={`h-full rounded-full transition-all ${avgProgress >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' : avgProgress >= 50 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 'bg-gradient-to-r from-red-500 to-rose-500'}`}
+                          style={{ width: `${avgProgress}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className={`h-3 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                      <div
-                        className={`h-full rounded-full ${avgProgress >= 80 ? 'bg-green-500' : avgProgress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                        style={{ width: `${avgProgress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
