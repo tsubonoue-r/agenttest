@@ -1,4 +1,50 @@
-// User types
+// ============================================
+// Department types (部 → 課 階層)
+// ============================================
+export interface Division {
+  id: string;
+  name: string;           // 部名 (例: 開発部, 営業部)
+  managerId?: string;     // 部長ID
+  createdAt: string;
+}
+
+export interface Section {
+  id: string;
+  name: string;           // 課名 (例: 開発1課, 営業2課)
+  divisionId: string;     // 所属部ID (必須)
+  managerId?: string;     // 課長ID
+  createdAt: string;
+}
+
+// Legacy Department (後方互換性)
+export interface Department {
+  id: string;
+  name: string;
+  managerId: string;
+}
+
+// ============================================
+// Employee types (Lark連携対応)
+// ============================================
+export interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  role: 'employee' | 'manager' | 'admin';
+  divisionId: string;     // 所属部 (必須)
+  sectionId: string;      // 所属課 (必須)
+  managerId?: string;
+  // Lark連携
+  larkUserId?: string;
+  larkOpenId?: string;
+  isLarkUser: boolean;
+  avatarUrl?: string;
+  // メタデータ
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Legacy User (後方互換性)
 export interface User {
   id: string;
   name: string;
@@ -8,7 +54,61 @@ export interface User {
   managerId?: string;
 }
 
+// ============================================
+// Lark API types
+// ============================================
+export interface LarkUser {
+  user_id: string;
+  open_id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  department_ids: string[];
+}
+
+export interface LarkDepartment {
+  department_id: string;
+  name: string;
+  parent_department_id?: string;
+  member_count: number;
+}
+
+export interface LarkAuthToken {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string;
+}
+
+// ============================================
+// Auth types
+// ============================================
+export interface AuthSession {
+  userId: string;
+  email: string;
+  name: string;
+  role: 'employee' | 'manager' | 'admin';
+  isLarkUser: boolean;
+  larkAccessToken?: string;
+  expiresAt: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  divisionId: string;
+  sectionId: string;
+}
+
+// ============================================
 // Skill types
+// ============================================
 export interface Skill {
   id: string;
   name: string;
@@ -28,7 +128,9 @@ export interface UserSkillProfile {
   updatedAt: string;
 }
 
+// ============================================
 // Quiz/Question types
+// ============================================
 export interface Question {
   id: string;
   text: string;
@@ -61,7 +163,9 @@ export interface QuizAttempt {
   completedAt: string;
 }
 
+// ============================================
 // Material types
+// ============================================
 export interface Material {
   id: string;
   title: string;
@@ -74,14 +178,9 @@ export interface Material {
   skillIds: string[];
 }
 
-// Department types
-export interface Department {
-  id: string;
-  name: string;
-  managerId: string;
-}
-
+// ============================================
 // Radar chart data type
+// ============================================
 export interface RadarChartData {
   skill: string;
   current: number;

@@ -1,9 +1,12 @@
 'use client';
 
-import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department } from '@/types';
+import { User, Quiz, Material, UserSkillProfile, QuizAttempt, Skill, Department, Division, Section, Employee } from '@/types';
 
 const STORAGE_KEYS = {
   USERS: 'elearning_users',
+  EMPLOYEES: 'elearning_employees',
+  DIVISIONS: 'elearning_divisions',
+  SECTIONS: 'elearning_sections',
   QUIZZES: 'elearning_quizzes',
   MATERIALS: 'elearning_materials',
   SKILL_PROFILES: 'elearning_skill_profiles',
@@ -13,7 +16,6 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'elearning_current_user',
 };
 
-// Generic storage functions
 function getItem<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue;
   const item = localStorage.getItem(key);
@@ -25,7 +27,119 @@ function setItem<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-// Users
+// ============================================
+// Divisions (部)
+// ============================================
+export function getDivisions(): Division[] {
+  return getItem<Division[]>(STORAGE_KEYS.DIVISIONS, []);
+}
+
+export function setDivisions(divisions: Division[]): void {
+  setItem(STORAGE_KEYS.DIVISIONS, divisions);
+}
+
+export function addDivision(division: Division): void {
+  const divisions = getDivisions();
+  divisions.push(division);
+  setDivisions(divisions);
+}
+
+export function updateDivision(division: Division): void {
+  const divisions = getDivisions();
+  const index = divisions.findIndex(d => d.id === division.id);
+  if (index !== -1) {
+    divisions[index] = division;
+    setDivisions(divisions);
+  }
+}
+
+export function deleteDivision(id: string): void {
+  setDivisions(getDivisions().filter(d => d.id !== id));
+}
+
+// ============================================
+// Sections (課)
+// ============================================
+export function getSections(): Section[] {
+  return getItem<Section[]>(STORAGE_KEYS.SECTIONS, []);
+}
+
+export function setSections(sections: Section[]): void {
+  setItem(STORAGE_KEYS.SECTIONS, sections);
+}
+
+export function addSection(section: Section): void {
+  const sections = getSections();
+  sections.push(section);
+  setSections(sections);
+}
+
+export function updateSection(section: Section): void {
+  const sections = getSections();
+  const index = sections.findIndex(s => s.id === section.id);
+  if (index !== -1) {
+    sections[index] = section;
+    setSections(sections);
+  }
+}
+
+export function deleteSection(id: string): void {
+  setSections(getSections().filter(s => s.id !== id));
+}
+
+export function getSectionsByDivision(divisionId: string): Section[] {
+  return getSections().filter(s => s.divisionId === divisionId);
+}
+
+// ============================================
+// Employees (社員)
+// ============================================
+export function getEmployees(): Employee[] {
+  return getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, []);
+}
+
+export function setEmployees(employees: Employee[]): void {
+  setItem(STORAGE_KEYS.EMPLOYEES, employees);
+}
+
+export function addEmployee(employee: Employee): void {
+  const employees = getEmployees();
+  employees.push(employee);
+  setEmployees(employees);
+}
+
+export function updateEmployee(employee: Employee): void {
+  const employees = getEmployees();
+  const index = employees.findIndex(e => e.id === employee.id);
+  if (index !== -1) {
+    employees[index] = { ...employee, updatedAt: new Date().toISOString() };
+    setEmployees(employees);
+  }
+}
+
+export function deleteEmployee(id: string): void {
+  setEmployees(getEmployees().filter(e => e.id !== id));
+}
+
+export function getEmployeeById(id: string): Employee | undefined {
+  return getEmployees().find(e => e.id === id);
+}
+
+export function getEmployeeByEmail(email: string): Employee | undefined {
+  return getEmployees().find(e => e.email === email);
+}
+
+export function getEmployeesByDivision(divisionId: string): Employee[] {
+  return getEmployees().filter(e => e.divisionId === divisionId);
+}
+
+export function getEmployeesBySection(sectionId: string): Employee[] {
+  return getEmployees().filter(e => e.sectionId === sectionId);
+}
+
+// ============================================
+// Legacy Users (後方互換性)
+// ============================================
 export function getUsers(): User[] {
   return getItem<User[]>(STORAGE_KEYS.USERS, []);
 }
@@ -48,7 +162,6 @@ export function getUsersByManager(managerId: string): User[] {
   return getUsers().filter(u => u.managerId === managerId);
 }
 
-// Current User
 export function getCurrentUser(): User | null {
   return getItem<User | null>(STORAGE_KEYS.CURRENT_USER, null);
 }
@@ -57,7 +170,9 @@ export function setCurrentUser(user: User | null): void {
   setItem(STORAGE_KEYS.CURRENT_USER, user);
 }
 
+// ============================================
 // Quizzes
+// ============================================
 export function getQuizzes(): Quiz[] {
   return getItem<Quiz[]>(STORAGE_KEYS.QUIZZES, []);
 }
@@ -82,15 +197,16 @@ export function updateQuiz(quiz: Quiz): void {
 }
 
 export function deleteQuiz(id: string): void {
-  const quizzes = getQuizzes().filter(q => q.id !== id);
-  setQuizzes(quizzes);
+  setQuizzes(getQuizzes().filter(q => q.id !== id));
 }
 
 export function getQuizById(id: string): Quiz | undefined {
   return getQuizzes().find(q => q.id === id);
 }
 
+// ============================================
 // Materials
+// ============================================
 export function getMaterials(): Material[] {
   return getItem<Material[]>(STORAGE_KEYS.MATERIALS, []);
 }
@@ -115,11 +231,12 @@ export function updateMaterial(material: Material): void {
 }
 
 export function deleteMaterial(id: string): void {
-  const materials = getMaterials().filter(m => m.id !== id);
-  setMaterials(materials);
+  setMaterials(getMaterials().filter(m => m.id !== id));
 }
 
+// ============================================
 // Skills
+// ============================================
 export function getSkills(): Skill[] {
   return getItem<Skill[]>(STORAGE_KEYS.SKILLS, []);
 }
@@ -134,7 +251,9 @@ export function addSkill(skill: Skill): void {
   setSkills(skills);
 }
 
+// ============================================
 // Skill Profiles
+// ============================================
 export function getSkillProfiles(): UserSkillProfile[] {
   return getItem<UserSkillProfile[]>(STORAGE_KEYS.SKILL_PROFILES, []);
 }
@@ -158,7 +277,9 @@ export function updateUserSkillProfile(profile: UserSkillProfile): void {
   setSkillProfiles(profiles);
 }
 
+// ============================================
 // Quiz Attempts
+// ============================================
 export function getQuizAttempts(): QuizAttempt[] {
   return getItem<QuizAttempt[]>(STORAGE_KEYS.QUIZ_ATTEMPTS, []);
 }
@@ -173,7 +294,9 @@ export function getUserQuizAttempts(userId: string): QuizAttempt[] {
   return getQuizAttempts().filter(a => a.userId === userId);
 }
 
-// Departments
+// ============================================
+// Departments (Legacy)
+// ============================================
 export function getDepartments(): Department[] {
   return getItem<Department[]>(STORAGE_KEYS.DEPARTMENTS, []);
 }
@@ -182,149 +305,109 @@ export function setDepartments(departments: Department[]): void {
   setItem(STORAGE_KEYS.DEPARTMENTS, departments);
 }
 
-// Initialize with sample data
+// ============================================
+// Initialize Sample Data
+// ============================================
 export function initializeSampleData(): void {
-  if (getUsers().length > 0) return;
+  // Divisions (部)
+  if (getDivisions().length === 0) {
+    const divisions: Division[] = [
+      { id: 'div_dev', name: '開発部', createdAt: new Date().toISOString() },
+      { id: 'div_sales', name: '営業部', createdAt: new Date().toISOString() },
+      { id: 'div_hr', name: '人事部', createdAt: new Date().toISOString() },
+    ];
+    setDivisions(divisions);
+  }
 
-  const sampleDepartments: Department[] = [
-    { id: 'dept1', name: '開発部', managerId: 'user2' },
-    { id: 'dept2', name: '営業部', managerId: 'user5' },
-  ];
+  // Sections (課)
+  if (getSections().length === 0) {
+    const sections: Section[] = [
+      { id: 'sec_dev1', name: '開発1課', divisionId: 'div_dev', createdAt: new Date().toISOString() },
+      { id: 'sec_dev2', name: '開発2課', divisionId: 'div_dev', createdAt: new Date().toISOString() },
+      { id: 'sec_sales1', name: '営業1課', divisionId: 'div_sales', createdAt: new Date().toISOString() },
+      { id: 'sec_sales2', name: '営業2課', divisionId: 'div_sales', createdAt: new Date().toISOString() },
+      { id: 'sec_hr1', name: '人事1課', divisionId: 'div_hr', createdAt: new Date().toISOString() },
+    ];
+    setSections(sections);
+  }
 
-  const sampleUsers: User[] = [
-    { id: 'user1', name: '山田太郎', email: 'yamada@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
-    { id: 'user2', name: '鈴木課長', email: 'suzuki@example.com', role: 'manager', departmentId: 'dept1' },
-    { id: 'user3', name: '佐藤花子', email: 'sato@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
-    { id: 'user4', name: '田中一郎', email: 'tanaka@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
-    { id: 'user5', name: '高橋部長', email: 'takahashi@example.com', role: 'manager', departmentId: 'dept2' },
-    { id: 'admin1', name: '管理者', email: 'admin@example.com', role: 'admin', departmentId: 'dept1' },
-  ];
+  // Employees (社員)
+  if (getEmployees().length === 0) {
+    const now = new Date().toISOString();
+    const employees: Employee[] = [
+      { id: 'emp1', name: '山田 太郎', email: 'yamada@example.com', role: 'employee', divisionId: 'div_dev', sectionId: 'sec_dev1', isLarkUser: true, larkUserId: 'lark_001', createdAt: now, updatedAt: now },
+      { id: 'emp2', name: '鈴木 課長', email: 'suzuki@example.com', role: 'manager', divisionId: 'div_dev', sectionId: 'sec_dev1', isLarkUser: true, larkUserId: 'lark_002', createdAt: now, updatedAt: now },
+      { id: 'emp3', name: '佐藤 花子', email: 'sato@example.com', role: 'employee', divisionId: 'div_dev', sectionId: 'sec_dev2', isLarkUser: false, createdAt: now, updatedAt: now },
+      { id: 'emp4', name: '田中 一郎', email: 'tanaka@example.com', role: 'employee', divisionId: 'div_sales', sectionId: 'sec_sales1', isLarkUser: true, larkUserId: 'lark_003', createdAt: now, updatedAt: now },
+      { id: 'emp5', name: '高橋 部長', email: 'takahashi@example.com', role: 'manager', divisionId: 'div_sales', sectionId: 'sec_sales1', isLarkUser: false, createdAt: now, updatedAt: now },
+      { id: 'admin1', name: '管理者', email: 'admin@example.com', role: 'admin', divisionId: 'div_hr', sectionId: 'sec_hr1', isLarkUser: false, createdAt: now, updatedAt: now },
+    ];
+    setEmployees(employees);
+  }
 
-  const sampleSkills: Skill[] = [
-    { id: 'skill1', name: 'TypeScript', description: 'TypeScriptプログラミング', category: '技術' },
-    { id: 'skill2', name: 'React', description: 'Reactフレームワーク', category: '技術' },
-    { id: 'skill3', name: 'コミュニケーション', description: 'チーム内コミュニケーション', category: 'ソフトスキル' },
-    { id: 'skill4', name: 'プロジェクト管理', description: 'プロジェクトの計画と管理', category: 'マネジメント' },
-    { id: 'skill5', name: 'データ分析', description: 'データの収集と分析', category: '技術' },
-    { id: 'skill6', name: 'プレゼンテーション', description: '効果的なプレゼン技術', category: 'ソフトスキル' },
-  ];
+  // Legacy data for backward compatibility
+  if (getUsers().length === 0) {
+    const users: User[] = [
+      { id: 'user1', name: '山田太郎', email: 'yamada@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
+      { id: 'user2', name: '鈴木課長', email: 'suzuki@example.com', role: 'manager', departmentId: 'dept1' },
+      { id: 'user3', name: '佐藤花子', email: 'sato@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
+      { id: 'user4', name: '田中一郎', email: 'tanaka@example.com', role: 'employee', departmentId: 'dept1', managerId: 'user2' },
+      { id: 'user5', name: '高橋部長', email: 'takahashi@example.com', role: 'manager', departmentId: 'dept2' },
+      { id: 'admin1', name: '管理者', email: 'admin@example.com', role: 'admin', departmentId: 'dept1' },
+    ];
+    setUsers(users);
+  }
 
-  const sampleSkillProfiles: UserSkillProfile[] = [
-    {
-      userId: 'user1',
-      skills: [
-        { skillId: 'skill1', currentLevel: 3, targetLevel: 5 },
-        { skillId: 'skill2', currentLevel: 4, targetLevel: 5 },
-        { skillId: 'skill3', currentLevel: 3, targetLevel: 4 },
-        { skillId: 'skill4', currentLevel: 2, targetLevel: 4 },
-        { skillId: 'skill5', currentLevel: 2, targetLevel: 3 },
-        { skillId: 'skill6', currentLevel: 3, targetLevel: 4 },
-      ],
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'user3',
-      skills: [
-        { skillId: 'skill1', currentLevel: 4, targetLevel: 5 },
-        { skillId: 'skill2', currentLevel: 3, targetLevel: 5 },
-        { skillId: 'skill3', currentLevel: 4, targetLevel: 5 },
-        { skillId: 'skill4', currentLevel: 3, targetLevel: 4 },
-        { skillId: 'skill5', currentLevel: 3, targetLevel: 4 },
-        { skillId: 'skill6', currentLevel: 2, targetLevel: 4 },
-      ],
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'user4',
-      skills: [
-        { skillId: 'skill1', currentLevel: 2, targetLevel: 4 },
-        { skillId: 'skill2', currentLevel: 2, targetLevel: 4 },
-        { skillId: 'skill3', currentLevel: 4, targetLevel: 5 },
-        { skillId: 'skill4', currentLevel: 2, targetLevel: 3 },
-        { skillId: 'skill5', currentLevel: 4, targetLevel: 5 },
-        { skillId: 'skill6', currentLevel: 3, targetLevel: 4 },
-      ],
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  if (getDepartments().length === 0) {
+    const departments: Department[] = [
+      { id: 'dept1', name: '開発部', managerId: 'user2' },
+      { id: 'dept2', name: '営業部', managerId: 'user5' },
+    ];
+    setDepartments(departments);
+  }
 
-  const sampleQuizzes: Quiz[] = [
-    {
-      id: 'quiz1',
-      title: 'TypeScript基礎テスト',
-      description: 'TypeScriptの基本的な知識を確認するテストです',
-      questions: [
-        {
-          id: 'q1',
-          text: 'TypeScriptは何の上位互換ですか？',
-          type: 'single',
-          options: ['Java', 'JavaScript', 'Python', 'C++'],
-          correctAnswers: [1],
-          points: 10,
-          skillId: 'skill1',
-        },
-        {
-          id: 'q2',
-          text: 'TypeScriptの型注釈で正しいものはどれですか？',
-          type: 'single',
-          options: ['let x: number = 5', 'let x = number 5', 'number let x = 5', 'let x number: 5'],
-          correctAnswers: [0],
-          points: 10,
-          skillId: 'skill1',
-        },
-        {
-          id: 'q3',
-          text: 'interfaceとtypeの違いを説明してください',
-          type: 'text',
-          correctAnswers: ['interface', 'type'],
-          points: 20,
-          skillId: 'skill1',
-        },
-      ],
-      createdBy: 'admin1',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      skillIds: ['skill1'],
-      passingScore: 60,
-    },
-  ];
+  if (getSkills().length === 0) {
+    const skills: Skill[] = [
+      { id: 'skill1', name: 'TypeScript', description: 'TypeScriptプログラミング', category: '技術' },
+      { id: 'skill2', name: 'React', description: 'Reactフレームワーク', category: '技術' },
+      { id: 'skill3', name: 'コミュニケーション', description: 'チーム内コミュニケーション', category: 'ソフトスキル' },
+      { id: 'skill4', name: 'プロジェクト管理', description: 'プロジェクトの計画と管理', category: 'マネジメント' },
+      { id: 'skill5', name: 'データ分析', description: 'データの収集と分析', category: '技術' },
+      { id: 'skill6', name: 'プレゼンテーション', description: '効果的なプレゼン技術', category: 'ソフトスキル' },
+    ];
+    setSkills(skills);
+  }
 
-  const sampleMaterials: Material[] = [
-    {
-      id: 'mat1',
-      title: 'TypeScript入門ガイド',
-      description: 'TypeScriptの基本を学ぶための資料です',
-      type: 'document',
-      url: '',
-      content: `# TypeScript入門
+  if (getSkillProfiles().length === 0) {
+    const profiles: UserSkillProfile[] = [
+      { userId: 'user1', skills: [{ skillId: 'skill1', currentLevel: 3, targetLevel: 5 }, { skillId: 'skill2', currentLevel: 4, targetLevel: 5 }], updatedAt: new Date().toISOString() },
+    ];
+    setSkillProfiles(profiles);
+  }
 
-## TypeScriptとは
-TypeScriptはMicrosoftが開発した、JavaScriptに静的型付けを追加したプログラミング言語です。
+  if (getQuizzes().length === 0) {
+    const quizzes: Quiz[] = [
+      {
+        id: 'quiz1',
+        title: 'TypeScript基礎テスト',
+        description: 'TypeScriptの基本的な知識を確認するテストです',
+        questions: [
+          { id: 'q1', text: 'TypeScriptは何の上位互換ですか？', type: 'single', options: ['Java', 'JavaScript', 'Python', 'C++'], correctAnswers: [1], points: 10, skillId: 'skill1' },
+        ],
+        createdBy: 'admin1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        skillIds: ['skill1'],
+        passingScore: 60,
+      },
+    ];
+    setQuizzes(quizzes);
+  }
 
-## 基本的な型
-- number: 数値
-- string: 文字列
-- boolean: 真偽値
-- array: 配列
-- object: オブジェクト
-
-## 型注釈
-\`\`\`typescript
-let name: string = "John";
-let age: number = 30;
-let isActive: boolean = true;
-\`\`\`
-`,
-      createdBy: 'admin1',
-      createdAt: new Date().toISOString(),
-      skillIds: ['skill1'],
-    },
-  ];
-
-  setDepartments(sampleDepartments);
-  setUsers(sampleUsers);
-  setSkills(sampleSkills);
-  setSkillProfiles(sampleSkillProfiles);
-  setQuizzes(sampleQuizzes);
-  setMaterials(sampleMaterials);
+  if (getMaterials().length === 0) {
+    const materials: Material[] = [
+      { id: 'mat1', title: 'TypeScript入門ガイド', description: 'TypeScriptの基本を学ぶための資料です', type: 'document', url: '', content: '# TypeScript入門\n\nTypeScriptはMicrosoftが開発した言語です。', createdBy: 'admin1', createdAt: new Date().toISOString(), skillIds: ['skill1'] },
+    ];
+    setMaterials(materials);
+  }
 }
